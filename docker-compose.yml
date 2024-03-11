@@ -1,0 +1,50 @@
+version: "3.0"
+
+services:
+  nodeserver:
+    build:
+      context: ./app
+    container_name: node
+    command: npm-install && npm-install mysql
+    entrypoint: node index.js
+    networks:
+      - nodenet
+    tty: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:5.7
+    command: --innodb-use-native-aio=0
+    container_name: db
+    restart: always
+    tty: true
+    volumes:
+      - ./mysql:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=nodedb
+      - MYSQL_ROOT_PASSWORD=root
+    networks:
+      - nodenet
+
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+  nginx:
+    build:
+      context: ./nginx
+    restart: always
+    container_name: nginx
+    networks:
+      - nodenet
+    ports:
+      - "8080:80"
+
+networks:
+  nodenet:
+    driver: bridge
