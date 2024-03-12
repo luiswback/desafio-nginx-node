@@ -1,50 +1,49 @@
 version: "3.0"
 
 services:
-  nodeserver:
+
+  app:
     build:
-      context: ./app
-    container_name: node
-    command: npm-install && npm-install mysql
-    entrypoint: node index.js
-    networks:
-      - nodenet
+      context: app
+    container_name: app
     tty: true
-    ports:
-      - "3000:3000"
+    entrypoint: sh -c "npm install && npm run dev"
+    volumes:
+      - ./app:/usr/src/app
+      #- /usr/src/app/node_modules
     depends_on:
       db:
         condition: service_healthy
 
+  nginx:
+    image: nginx:1.24.0
+    container_name: nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "8080:80"
+    depends_on:
+      - app
+
   db:
     image: mysql:5.7
-    command: --innodb-use-native-aio=0
     container_name: db
     restart: always
     tty: true
     volumes:
-      - ./mysql:/var/lib/mysql
+      - mysql:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       - MYSQL_DATABASE=nodedb
       - MYSQL_ROOT_PASSWORD=root
-    networks:
-      - nodenet
 
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
       interval: 5s
       timeout: 10s
       retries: 3
-  nginx:
-    build:
-      context: ./nginx
-    restart: always
-    container_name: nginx
-    networks:
-      - nodenet
-    ports:
-      - "8080:80"
 
-networks:
-  nodenet:
-    driver: bridge
+
+volumes:
+  mysql:
+    driver: local
